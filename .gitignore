@@ -10,3 +10,6 @@
 *.apk
 *.aab
 /app/build
+.env
+*.key
+credentials.json
