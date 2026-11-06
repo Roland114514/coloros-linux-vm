@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
-    package="com.oppo.coloros.linux">
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- 全局置顶悬浮球权限 -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
@@ -84,7 +83,7 @@
         <!-- ColorOS 文件管理器原生挂载通道 (DocumentsProvider) -->
         <provider
             android:name=".provider.LinuxStorageProvider"
-            android:authorities="com.oppo.coloros.linux.documents"
+            android:authorities="org.roland.coloroslinux.documents"
             android:exported="true"
             android:grantUriPermissions="true"
             android:permission="android.permission.MANAGE_DOCUMENTS">

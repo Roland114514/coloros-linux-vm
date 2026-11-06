@@ -25,7 +25,7 @@ class FloatingSwitchService : Service() {
         private const val TAG = "FloatingSwitchService"
         @Volatile
         var isLinuxForeground: Boolean = false
-        const val ACTION_MINIMIZE_LINUX = "com.oppo.coloros.linux.ACTION_MINIMIZE_LINUX"
+        const val ACTION_MINIMIZE_LINUX = "org.roland.coloroslinux.ACTION_MINIMIZE_LINUX"
     }
 
     private lateinit var windowManager: WindowManager

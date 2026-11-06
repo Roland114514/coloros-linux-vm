@@ -39,7 +39,8 @@
 
 1. **直接下载安装**：
    - 点击下方 Assets 中的 `ColorOS-Linux-Desktop-v1.0.0.apk` 下载至平板。
-   - 点击安装包完成安装（包体已经过预先签名，允许直接一键安装）。
+   - 点击安装包完成安装（包体已经过预先独立 Release 证书签名，适配 ColorOS / Android 14+ 权限体系，允许直接一键安装）。
+   - **包名 (Application ID)**：`org.roland.coloroslinux`
 2. **首次启动**：
    - 打开桌面图标 **Ubuntu Virtual Desktop**。
    - 授予“悬浮窗”与“所有文件访问”权限。
@@ -51,9 +52,9 @@
 
 ## 🔒 校验哈希 (SHA256)
 ```text
-f7d6f26ceab7c70eaf1f934a860097fbf9178add26e61bb1759b4a5cffd825c0  ColorOS-Linux-Desktop-v1.0.0.apk
+c0e13164104b9fcf54197a4111f9c57069ddd431737c77e1a49b4480250545a2  ColorOS-Linux-Desktop-v1.0.0.apk
 ```
-文件大小：**2.8 MB** (精炼 Native 混合打包，极速下载)
+文件大小：**2.9 MB** (精炼 Native 混合打包，极速下载)
 
 ---
 

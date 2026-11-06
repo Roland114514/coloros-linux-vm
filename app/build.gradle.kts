@@ -8,7 +8,7 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.oppo.coloros.linux"
+        applicationId = "org.roland.coloroslinux"
         minSdk = 34 // ColorOS 14/15/17 基准
         targetSdk = 35
         versionCode = 100
@@ -27,6 +27,18 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("release-key.jks")
+            storePassword = "coloroslinux123"
+            keyAlias = "coloros-linux"
+            keyPassword = "coloroslinux123"
+            enableV1Signing = true
+            enableV2Signing = true
+            enableV3Signing = true
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -35,7 +47,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 

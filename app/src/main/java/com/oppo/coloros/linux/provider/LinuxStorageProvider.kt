@@ -22,7 +22,7 @@ import java.io.IOException
 class LinuxStorageProvider : DocumentsProvider() {
 
     companion object {
-        const val AUTHORITY = "com.oppo.coloros.linux.documents"
+        const val AUTHORITY = "org.roland.coloroslinux.documents"
         private const val ROOT_ID = "coloros_linux_home"
 
         private val DEFAULT_ROOT_PROJECTION = arrayOf(
