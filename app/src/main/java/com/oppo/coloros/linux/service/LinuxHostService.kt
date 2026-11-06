@@ -14,8 +14,10 @@ import android.os.IBinder
 import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.oppo.coloros.linux.bridge.AudioStreamBridge
 import com.oppo.coloros.linux.core.IRuntimeEngine
 import com.oppo.coloros.linux.core.PRootEngine
+import com.oppo.coloros.linux.core.RootfsInstaller
 import com.oppo.coloros.linux.ui.LinuxDisplayActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -33,6 +35,9 @@ class LinuxHostService : Service() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private lateinit var wakeLock: PowerManager.WakeLock
+    private var audioBridge: AudioStreamBridge? = null
+    lateinit var rootfsInstaller: RootfsInstaller
+        private set
     lateinit var runtimeEngine: IRuntimeEngine
         private set
 
@@ -46,9 +51,12 @@ class LinuxHostService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        rootfsInstaller = RootfsInstaller(applicationContext)
         runtimeEngine = PRootEngine(applicationContext)
+
         acquirePartialWakeLock()
         startForegroundDaemon()
+        startAudioBridge()
         bootLinuxEnvironment()
     }
 
@@ -66,6 +74,11 @@ class LinuxHostService : Service() {
             acquire()
         }
         Log.i(TAG, "CPU Partial WakeLock acquired to prevent ColorOS Hans freeze.")
+    }
+
+    private fun startAudioBridge() {
+        audioBridge = AudioStreamBridge(port = 4713)
+        audioBridge?.start()
     }
 
     private fun startForegroundDaemon() {
@@ -109,9 +122,16 @@ class LinuxHostService : Service() {
     }
 
     private fun bootLinuxEnvironment() {
-        serviceScope.launch {
-            runtimeEngine.bootContainer { logLine ->
-                Log.d(TAG, "[Container] $logLine")
+        serviceScope.launch(Dispatchers.IO) {
+            Log.i(TAG, "Checking rootfs environment before boot...")
+            val installResult = rootfsInstaller.installIfNeeded()
+            if (installResult.isSuccess) {
+                Log.i(TAG, "Rootfs is ready, booting PRoot container...")
+                runtimeEngine.bootContainer { logLine ->
+                    Log.d(TAG, "[Ubuntu] $logLine")
+                }
+            } else {
+                Log.e(TAG, "Rootfs installation failed: ${installResult.exceptionOrNull()}")
             }
         }
     }
@@ -119,6 +139,9 @@ class LinuxHostService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         runtimeEngine.shutdownContainer()
+        audioBridge?.stop()
+        audioBridge = null
+
         if (::wakeLock.isInitialized && wakeLock.isHeld) {
             wakeLock.release()
         }
