@@ -107,6 +107,14 @@ object InputEventBridge {
     private val activeMouseButtonMask = java.util.concurrent.atomic.AtomicInteger(MOUSE_BUTTON_NONE)
     @Volatile private var lastMoveTimestamp: Long = 0L
 
+    private inline fun safeNativeCall(block: () -> Unit) {
+        try {
+            block()
+        } catch (e: LinkageError) {
+            // 在宿主单元测试环境或无 native .so 环境下安全降级
+        }
+    }
+
     /**
      * 更新外屏目标分辨率（在 ExternalDisplayManager 绑定外屏时调用）
      */
@@ -132,7 +140,9 @@ object InputEventBridge {
         val acceleratedDx = rawDx * acceleration
         val acceleratedDy = rawDy * acceleration
 
-        NativeDisplayBridge.sendRelativeMouseEvent(acceleratedDx, acceleratedDy, activeMouseButtonMask.get())
+        safeNativeCall {
+            NativeDisplayBridge.sendRelativeMouseEvent(acceleratedDx, acceleratedDy, activeMouseButtonMask.get())
+        }
     }
 
     /**
@@ -142,7 +152,9 @@ object InputEventBridge {
         val newMask = activeMouseButtonMask.updateAndGet { current ->
             if (isDown) current or buttonMask else current and buttonMask.inv()
         }
-        NativeDisplayBridge.sendRelativeMouseEvent(0f, 0f, newMask)
+        safeNativeCall {
+            NativeDisplayBridge.sendRelativeMouseEvent(0f, 0f, newMask)
+        }
     }
 
     fun sendMouseButton(buttonMask: Int, isDown: Boolean) {
@@ -161,7 +173,9 @@ object InputEventBridge {
      * 智能触控板：模拟双指平滑滚轮
      */
     fun sendTrackpadScroll(deltaY: Float, deltaX: Float) {
-        NativeDisplayBridge.sendScrollEvent(deltaY, deltaX)
+        safeNativeCall {
+            NativeDisplayBridge.sendScrollEvent(deltaY, deltaX)
+        }
     }
 
     /**
@@ -184,14 +198,16 @@ object InputEventBridge {
         val mappedX = normalizedX * externalDisplayWidth
         val mappedY = normalizedY * externalDisplayHeight
 
-        NativeDisplayBridge.sendStylusEvent(
-            x = mappedX,
-            y = mappedY,
-            action = action,
-            pressure = pressure,
-            tilt = tilt,
-            isEraser = isEraser
-        )
+        safeNativeCall {
+            NativeDisplayBridge.sendStylusEvent(
+                x = mappedX,
+                y = mappedY,
+                action = action,
+                pressure = pressure,
+                tilt = tilt,
+                isEraser = isEraser
+            )
+        }
     }
 
     /**
@@ -219,14 +235,16 @@ object InputEventBridge {
         val tilt = event.getAxisValue(MotionEvent.AXIS_TILT, index)
         val isEraser = toolType == MotionEvent.TOOL_TYPE_ERASER
 
-        NativeDisplayBridge.sendStylusEvent(
-            x = mappedX,
-            y = mappedY,
-            action = event.actionMasked,
-            pressure = pressure,
-            tilt = tilt,
-            isEraser = isEraser
-        )
+        safeNativeCall {
+            NativeDisplayBridge.sendStylusEvent(
+                x = mappedX,
+                y = mappedY,
+                action = event.actionMasked,
+                pressure = pressure,
+                tilt = tilt,
+                isEraser = isEraser
+            )
+        }
         return true
     }
 
@@ -234,26 +252,32 @@ object InputEventBridge {
      * 发送单个 Linux 扫描码按键脉冲（按下+释放）
      */
     fun sendKeyClick(linuxKeyCode: Int) {
-        NativeDisplayBridge.sendKeyEvent(linuxKeyCode, true)
-        NativeDisplayBridge.sendKeyEvent(linuxKeyCode, false)
+        safeNativeCall {
+            NativeDisplayBridge.sendKeyEvent(linuxKeyCode, true)
+            NativeDisplayBridge.sendKeyEvent(linuxKeyCode, false)
+        }
     }
 
     /**
      * 发送单个 Linux 扫描码按下或抬起（用于 Ctrl/Alt/Shift/Super 修饰键锁存）
      */
     fun sendKeyState(linuxKeyCode: Int, isDown: Boolean) {
-        NativeDisplayBridge.sendKeyEvent(linuxKeyCode, isDown)
+        safeNativeCall {
+            NativeDisplayBridge.sendKeyEvent(linuxKeyCode, isDown)
+        }
     }
 
     /**
      * 发送原子组合快捷键（例如 Ctrl+C, Ctrl+V, Ctrl+Alt+Left 切换工作区）
      */
     fun sendKeyCombo(vararg linuxKeyCodes: Int) {
-        for (code in linuxKeyCodes) {
-            NativeDisplayBridge.sendKeyEvent(code, true)
-        }
-        for (i in linuxKeyCodes.indices.reversed()) {
-            NativeDisplayBridge.sendKeyEvent(linuxKeyCodes[i], false)
+        safeNativeCall {
+            for (code in linuxKeyCodes) {
+                NativeDisplayBridge.sendKeyEvent(code, true)
+            }
+            for (i in linuxKeyCodes.indices.reversed()) {
+                NativeDisplayBridge.sendKeyEvent(linuxKeyCodes[i], false)
+            }
         }
     }
 
@@ -273,19 +297,23 @@ object InputEventBridge {
             val tilt = event.getAxisValue(MotionEvent.AXIS_TILT, index)
             val isEraser = toolType == MotionEvent.TOOL_TYPE_ERASER
 
-            NativeDisplayBridge.sendStylusEvent(
-                x = x,
-                y = y,
-                action = action,
-                pressure = pressure,
-                tilt = tilt,
-                isEraser = isEraser
-            )
+            safeNativeCall {
+                NativeDisplayBridge.sendStylusEvent(
+                    x = x,
+                    y = y,
+                    action = action,
+                    pressure = pressure,
+                    tilt = tilt,
+                    isEraser = isEraser
+                )
+            }
             return true
         }
 
         val pressure = event.getPressure(index)
-        NativeDisplayBridge.sendPointerEvent(x, y, action, pointerId, pressure)
+        safeNativeCall {
+            NativeDisplayBridge.sendPointerEvent(x, y, action, pointerId, pressure)
+        }
         return true
     }
 
@@ -298,14 +326,16 @@ object InputEventBridge {
             if (event.actionMasked == MotionEvent.ACTION_HOVER_MOVE ||
                 event.actionMasked == MotionEvent.ACTION_HOVER_ENTER ||
                 event.actionMasked == MotionEvent.ACTION_HOVER_EXIT) {
-                NativeDisplayBridge.sendStylusEvent(
-                    x = event.x,
-                    y = event.y,
-                    action = event.actionMasked,
-                    pressure = 0.0f,
-                    tilt = event.getAxisValue(MotionEvent.AXIS_TILT),
-                    isEraser = toolType == MotionEvent.TOOL_TYPE_ERASER
-                )
+                safeNativeCall {
+                    NativeDisplayBridge.sendStylusEvent(
+                        x = event.x,
+                        y = event.y,
+                        action = event.actionMasked,
+                        pressure = 0.0f,
+                        tilt = event.getAxisValue(MotionEvent.AXIS_TILT),
+                        isEraser = toolType == MotionEvent.TOOL_TYPE_ERASER
+                    )
+                }
                 return true
             }
         }
@@ -314,7 +344,9 @@ object InputEventBridge {
             val vScroll = event.getAxisValue(MotionEvent.AXIS_VSCROLL)
             val hScroll = event.getAxisValue(MotionEvent.AXIS_HSCROLL)
             if (vScroll != 0.0f || hScroll != 0.0f) {
-                NativeDisplayBridge.sendScrollEvent(vScroll, hScroll)
+                safeNativeCall {
+                    NativeDisplayBridge.sendScrollEvent(vScroll, hScroll)
+                }
                 return true
             }
         }
@@ -324,7 +356,9 @@ object InputEventBridge {
             val dy = event.getAxisValue(MotionEvent.AXIS_RELATIVE_Y)
             val buttonState = event.buttonState
             if (dx != 0.0f || dy != 0.0f || buttonState != 0) {
-                NativeDisplayBridge.sendRelativeMouseEvent(dx, dy, buttonState)
+                safeNativeCall {
+                    NativeDisplayBridge.sendRelativeMouseEvent(dx, dy, buttonState)
+                }
                 return true
             }
         }
@@ -337,7 +371,9 @@ object InputEventBridge {
         val linuxScanCode = androidKeyCodeToLinux(event.keyCode)
 
         if (linuxScanCode != KEY_RESERVED) {
-            NativeDisplayBridge.sendKeyEvent(linuxScanCode, isDown)
+            safeNativeCall {
+                NativeDisplayBridge.sendKeyEvent(linuxScanCode, isDown)
+            }
             return true
         }
         return false

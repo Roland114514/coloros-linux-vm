@@ -10,6 +10,7 @@ import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
 import android.util.DisplayMetrics
+import android.util.Log
 import android.view.*
 import android.view.animation.DecelerateInterpolator
 import com.oppo.coloros.linux.R
@@ -21,6 +22,7 @@ import kotlin.math.min
 class FloatingSwitchService : Service() {
 
     companion object {
+        private const val TAG = "FloatingSwitchService"
         @Volatile
         var isLinuxForeground: Boolean = false
         const val ACTION_MINIMIZE_LINUX = "com.oppo.coloros.linux.ACTION_MINIMIZE_LINUX"

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="0.65"
+        android:scaleY="0.65"
+        android:translateX="18.9"
+        android:translateY="18.9">
+        <!-- Terminal / Desktop Monitor Frame -->
+        <path
+            android:fillColor="#00C261"
+            android:pathData="M16,18 L92,18 C96.4,18 100,21.6 100,26 L100,74 C100,78.4 96.4,82 92,82 L16,82 C11.6,82 8,78.4 8,74 L8,26 C8,21.6 11.6,18 16,18 Z" />
+        <path
+            android:fillColor="#15171C"
+            android:pathData="M14,24 L94,24 C95.1,24 96,24.9 96,26 L96,72 C96,73.1 95.1,74 94,74 L14,74 C12.9,74 12,73.1 12,72 L12,26 C12,24.9 12.9,24 14,24 Z" />
+        <!-- Prompt >_ -->
+        <path
+            android:fillColor="#00C261"
+            android:pathData="M24,36 L38,48 L24,60 L28,64 L46,48 L28,32 Z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M52,60 L74,60 L74,64 L52,64 Z" />
+        <!-- Stand -->
+        <path
+            android:fillColor="#00C261"
+            android:pathData="M48,82 L60,82 L64,92 L44,92 Z" />
+        <path
+            android:fillColor="#00C261"
+            android:pathData="M34,92 L74,92 L74,96 L34,96 Z" />
+    </group>
+</vector>
