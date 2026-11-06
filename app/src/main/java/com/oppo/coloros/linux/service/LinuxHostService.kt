@@ -15,9 +15,11 @@ import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.oppo.coloros.linux.bridge.AudioStreamBridge
+import com.oppo.coloros.linux.bridge.ClipboardBridge
 import com.oppo.coloros.linux.core.IRuntimeEngine
 import com.oppo.coloros.linux.core.PRootEngine
 import com.oppo.coloros.linux.core.RootfsInstaller
+import com.oppo.coloros.linux.display.ExternalDisplayManager
 import com.oppo.coloros.linux.ui.LinuxDisplayActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -46,6 +48,10 @@ class LinuxHostService : Service() {
         private set
     lateinit var runtimeEngine: IRuntimeEngine
         private set
+    lateinit var externalDisplayManager: ExternalDisplayManager
+        private set
+    lateinit var clipboardBridge: ClipboardBridge
+        private set
 
     private val listeners = CopyOnWriteArrayList<StateListener>()
     private val logBuffer = StringBuilder()
@@ -62,6 +68,14 @@ class LinuxHostService : Service() {
         super.onCreate()
         rootfsInstaller = RootfsInstaller(applicationContext)
         runtimeEngine = PRootEngine(applicationContext)
+
+        externalDisplayManager = ExternalDisplayManager(applicationContext) { isExternalActive ->
+            appendLog(if (isExternalActive) "[DISPLAY] 外接显示器已点亮，独占输出 Linux 4K 桌面" else "[DISPLAY] 外接显示器断开，回切至平板内屏")
+        }
+        externalDisplayManager.initialize(null, 1920, 1080)
+
+        clipboardBridge = ClipboardBridge(applicationContext)
+        clipboardBridge.start()
 
         acquirePartialWakeLock()
         startForegroundDaemon()
@@ -188,6 +202,8 @@ class LinuxHostService : Service() {
         runtimeEngine.shutdownContainer()
         audioBridge?.stop()
         audioBridge = null
+        clipboardBridge.stop()
+        externalDisplayManager.release()
 
         if (::wakeLock.isInitialized && wakeLock.isHeld) {
             wakeLock.release()

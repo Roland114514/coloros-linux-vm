@@ -72,5 +72,17 @@
                 android:value="Linux Container Environment and X11 Display Server Daemon for ColorOS Tablet" />
         </service>
 
+        <!-- ColorOS 文件管理器原生挂载通道 (DocumentsProvider) -->
+        <provider
+            android:name=".provider.LinuxStorageProvider"
+            android:authorities="com.oppo.coloros.linux.documents"
+            android:exported="true"
+            android:grantUriPermissions="true"
+            android:permission="android.permission.MANAGE_DOCUMENTS">
+            <intent-filter>
+                <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
+            </intent-filter>
+        </provider>
+
     </application>
 </manifest>
