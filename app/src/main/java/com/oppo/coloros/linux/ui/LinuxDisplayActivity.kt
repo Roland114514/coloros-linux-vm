@@ -16,6 +16,7 @@ import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.view.WindowManager
 import com.oppo.coloros.linux.R
+import com.oppo.coloros.linux.bridge.InputEventBridge
 import com.oppo.coloros.linux.core.NativeDisplayBridge
 import com.oppo.coloros.linux.service.FloatingSwitchService
 
@@ -27,6 +28,9 @@ class LinuxDisplayActivity : Activity(), SurfaceHolder.Callback {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == FloatingSwitchService.ACTION_MINIMIZE_LINUX) {
                 // 收到悬浮球点击指令，立即将 Linux 退回后台，不销毁实例，实现毫秒级切换
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    surfaceView.releasePointerCapture()
+                }
                 moveTaskToBack(true)
                 overridePendingTransition(0, 0)
             }
@@ -81,29 +85,31 @@ class LinuxDisplayActivity : Activity(), SurfaceHolder.Callback {
 
     @SuppressLint("ClickableViewAccessibility")
     private fun setupInputForwarding() {
-        // 支持多点触控与 OPPO Pencil 手写笔压感直通 X11
+        // 触控与手写笔事件转发
         surfaceView.setOnTouchListener { _, event ->
-            val action = event.actionMasked
-            val index = event.actionIndex
-            val pointerId = event.getPointerId(index)
-            val x = event.getX(index)
-            val y = event.getY(index)
-            val pressure = event.getPressure(index)
+            InputEventBridge.onTouchEvent(event)
+        }
 
-            try {
-                NativeDisplayBridge.sendPointerEvent(x, y, action, pointerId, pressure)
-            } catch (_: UnsatisfiedLinkError) {}
-            true
+        // 鼠标滚轮、相对移动与手写笔 Hover 悬浮事件转发
+        surfaceView.setOnGenericMotionListener { _, event ->
+            InputEventBridge.onGenericMotionEvent(event)
+        }
+
+        // 单击自动请求指针捕获（当连接蓝牙鼠标或触控板时独占光标）
+        surfaceView.setOnClickListener {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                if (!surfaceView.hasPointerCapture()) {
+                    surfaceView.requestPointerCapture()
+                }
+            }
         }
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        // 拦截外接蓝牙/磁吸键盘按键（含 Alt+Tab, Esc 等）直通 Linux X11
-        val isDown = event.action == KeyEvent.ACTION_DOWN
-        try {
-            NativeDisplayBridge.sendKeyEvent(event.keyCode, isDown)
+        // 拦截并转发物理键盘（含 Alt+Tab、Esc、Ctrl、Super 等快捷键）直通 Linux X11/evdev
+        if (InputEventBridge.onKeyEvent(event)) {
             return true
-        } catch (_: UnsatisfiedLinkError) {}
+        }
         return super.dispatchKeyEvent(event)
     }
 
@@ -120,6 +126,9 @@ class LinuxDisplayActivity : Activity(), SurfaceHolder.Callback {
         super.onPause()
         overridePendingTransition(0, 0)
         FloatingSwitchService.isLinuxForeground = false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            surfaceView.releasePointerCapture()
+        }
         // 退回 ColorOS 时将 X11 渲染限制为 1 FPS 极低功耗保活
         try {
             NativeDisplayBridge.setTargetFps(1)

@@ -141,13 +141,36 @@ Java_com_oppo_coloros_linux_core_NativeDisplayBridge_setTargetFps(JNIEnv* /*env*
 JNIEXPORT void JNICALL
 Java_com_oppo_coloros_linux_core_NativeDisplayBridge_sendPointerEvent(
         JNIEnv* /*env*/, jclass /*clazz*/, jfloat x, jfloat y, jint action, jint pointerId, jfloat pressure) {
-    // 将 OPPO Pencil 手写笔压感与多点触控通过 Unix Domain Socket 注入 X11/Wayland 管道
+    // 将多点触控通过 Unix Domain Socket 注入 X11/Wayland 管道
+    // action: 0=DOWN, 1=UP, 2=MOVE
+}
+
+JNIEXPORT void JNICALL
+Java_com_oppo_coloros_linux_core_NativeDisplayBridge_sendStylusEvent(
+        JNIEnv* /*env*/, jclass /*clazz*/, jfloat x, jfloat y, jint action, jfloat pressure, jfloat tilt, jboolean isEraser) {
+    // OPPO Pencil 专有驱动通道：
+    // pressure: 0.0f ~ 1.0f 归一化压感，映射至 Linux 4096 级压感
+    // tilt: 笔身倾斜角度 (-90 ~ 90 度)
+    // isEraser: 是否为笔尾橡皮擦模式
+    // 注入 libinput / Wayland tablet-v2 协议通道
+}
+
+JNIEXPORT void JNICALL
+Java_com_oppo_coloros_linux_core_NativeDisplayBridge_sendRelativeMouseEvent(
+        JNIEnv* /*env*/, jclass /*clazz*/, jfloat dx, jfloat dy, jint buttonState) {
+    // 鼠标指针独占捕获下的相对偏移量注入，避免受限于 Android 屏幕边缘
+}
+
+JNIEXPORT void JNICALL
+Java_com_oppo_coloros_linux_core_NativeDisplayBridge_sendScrollEvent(
+        JNIEnv* /*env*/, jclass /*clazz*/, jfloat vScroll, jfloat hScroll) {
+    // 鼠标垂直与水平滚轮滚动事件
 }
 
 JNIEXPORT void JNICALL
 Java_com_oppo_coloros_linux_core_NativeDisplayBridge_sendKeyEvent(
         JNIEnv* /*env*/, jclass /*clazz*/, jint keyCode, jboolean isDown) {
-    // 将平板外接键盘键值直通 Linux evdev / XKB
+    // 将平板外接键盘键值直通 Linux evdev (KEY_A, KEY_ESC, KEY_TAB, etc.)
 }
 
 } // extern "C"
