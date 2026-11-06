@@ -1,100 +1,148 @@
-# OPPO ColorOS 17 Linux 虚拟桌面与一键切换系统
+# OPPO ColorOS 17 Linux 虚拟桌面与独立双屏工作站
+> 专为 OPPO 平板（ColorOS 17，基于 Android 15/16）打造的工业级 Linux 桌面系统与双屏生产力工作台。
+> **免 Root · 120Hz 硬件加速 · 全局磁吸悬浮球一键切系统 · Type-C 独立双屏 · OPPO Pencil 4096级数位板直通 · SAF 存储桥接**
 
-本项目致力于在 OPPO 平板（ColorOS 17，基于 Android 15/16）上构建一款具备桌面级体验的 Linux 运行环境，并实现**全局悬浮球“一键切换系统”**（在 Android 与 Ubuntu 桌面之间无缝极速切换）。
-
----
-
-## 核心特性与技术规格
-
-- **底层引擎**：高性能免 Root 用户态容器（PRoot + Box64）。
-- **图形渲染管线**：嵌入式 Termux-X11 + AHardwareBuffer + Zink/Turnip (Adreno GPU 满血 Vulkan 硬件加速，支持 120Hz 刷新率)。
-- **一键切换交互**：全局半透明磁吸悬浮球（基于 `SYSTEM_ALERT_WINDOW`），支持随处触控吸附、一键切换、3D 展开/收起过渡动效。
-- **预置桌面环境**：Ubuntu 24.04 LTS (Noble aarch64) + 触控优化版 XFCE4 桌面环境（内存常驻 < 350MB，冷启动仅需 2~3 秒）。
-- **ColorOS 17 专项保活**：持有 WakeLock 与前台特权服务（`specialUse`），避免后台运行被 ColorOS 智能冻结或 LMK 查杀。
+[![Verify Project](https://github.com/Roland114514/coloros-linux-vm/actions/workflows/android_build.yml/badge.svg)](https://github.com/Roland114514/coloros-linux-vm/actions)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/Platform-ColorOS%2017%20%7C%20Android%2015%2B-green.svg)](https://www.oppo.com/cn/coloros/)
+[![Architecture](https://img.shields.io/badge/Arch-ARM64%20(aarch64)-orange.svg)](https://arm.com)
+[![Developer Guide](https://img.shields.io/badge/DIY%20Guide-DEVELOPER__GUIDE.md-purple.svg)](DEVELOPER_GUIDE.md)
 
 ---
 
-## 核心架构流程
+## 🌟 核心特性与技术亮点
 
-### 1. 全局悬浮球交互与双系统状态转移图
+### 1. 全局置顶悬浮球「一键切换系统」
+* **毫秒级极速切换**：常驻半透明磁吸悬浮球，防触控微抖动与横竖屏自动贴靠。
+* 在 ColorOS 17 原生 Android 桌面与 Ubuntu 24.04 XFCE4 桌面之间 `<150ms` 瞬时穿梭，无需重启容器，任务永不断线。
+
+### 2. Type-C / HDMI 独立双屏工作站 (Dual-Screen Workstation)
+* **大屏独占输出**：连接 Type-C 显示器或便携屏时，通过 Android `Presentation` 独立输出 Linux 4K/2K 原生桌面。
+* **平板内屏多模态智能触控板 (`SmartTrackpadActivity`)**：
+  * **非线性指针加速**：慢速微操 1:1 亚像素定位，快速大距离甩动自动放大 2.8x 跨越大屏。
+  * **丰富手势**：单指移动/点击、双指垂直与水平平滑滚动、双指右键、三指轻扫切换 Linux 虚拟工作区。
+  * **微动实体键**：底部集成独立左/中/右键，支持按住单指精准拖拽 (Drag & Drop)。
+  * **生产力工具栏**：集成 Esc, Tab, Ctrl/Alt/Shift 锁存器, Super, 组合快捷键与软键盘 (IME) 输入。
+
+### 3. OPPO Pencil 跨屏 4096 级压感数位板
+* 支持 OPPO Pencil 笔尖落笔、倾角（Tilt）、悬停（Hover）与橡皮擦模式。
+* 触控板模式下落笔**毫秒级转为绝对坐标数位板模式**，完整映射至外屏物理分辨率，直接驱动 Krita、GIMP、Blender 与 Xournal++。
+
+### 4. 零拷贝 120Hz 硬件加速管线
+* 依托 C++20 NDK 底层驱动，集成 EGL / GLES2 与高通骁龙 Adreno Turnip Vulkan + Zink OpenGL 硬件加速。
+* 配备 **Adreno GPU 条件变量防崩屏障**，彻底解决 Surface 销毁时的 GPU 驱动死锁与 GraphicBuffer 显存泄漏。
+
+### 5. 跨系统无缝生态互联
+* **ColorOS 原生文件管理挂载 (`LinuxStorageProvider`)**：通过 SAF 直接在平板系统自带「文件管理」App 读写 Linux `/root` 与工作区，具备严苛的 Path Traversal 与软链接逃逸防护。
+* **全双工实时剪贴板同步 (`ClipboardBridge`)**：基于本地 Unix Domain Socket，双向文本复制粘贴零延迟。
+* **PulseAudio 纯净音频直通 (`AudioStreamBridge`)**：配置 Linux 虚拟输出声卡并直通裸 PCM 流至 Android 高优先级音频线程，低延迟低功耗。
+
+---
+
+## 🛠️ 针对开源开发者的开放度与 DIY 指南
+
+> **这是一个所有人皆可自由定制、扩展与二次开发的开源工程！**
+
+详见核心教程：👉 [**【写给后续开发者的使用与 DIY 二次开发指南】 (DEVELOPER_GUIDE.md)**](DEVELOPER_GUIDE.md)
+
+### 常用 DIY 场景快速通道：
+1. **更换发行版**：将 Ubuntu 替换为 Arch Linux ARM、Debian、Kali Linux、Alpine 等。
+2. **更换桌面环境**：将 XFCE4 换成 i3wm 平铺桌面、LXQt 或远程 VS Code Server。
+3. **适配联发科天玑平台**：将高通 Turnip 驱动切为 VirGL 或 llvmpipe CPU 软解。
+4. **适配其他触控笔**：华为 M-Pencil、小米手写笔、三星 S-Pen 协议扩展。
+5. **增加快捷宏**：在智能触控板工具栏自定义一键执行的 Linux 指令。
+
+---
+
+## 🏗️ 架构拓扑与交互时序
+
+### 双屏工作站状态流转
 ```mermaid
 stateDiagram-v2
-    [*] --> FloatingBallHidden: 应用未启动
-    FloatingBallHidden --> FloatingBallActive: 启动应用 & 授予悬浮窗权限
+    [*] --> StandaloneTabletMode: 单平板模式 (ColorOS 17)
 
-    state "全局悬浮球状态" as FloatingBallState {
-        FloatingBallActive: 半透明常驻吸边 (透明度 40%)
-        FloatingBallDragging: 用户拖拽调整位置
-        FloatingBallHover: 触控接近或点击瞬间
+    state "独立双屏模式 (Type-C / HDMI 接入)" as DualScreenWorkstation {
+        ExternalPresentation: 外接显示器独占全屏 4K Linux 桌面
+        TabletNormalApps: 平板内屏运行 ColorOS 原生多任务
+        TabletSmartTrackpad: 平板内屏切入智能触控板 / 数位板
         
-        FloatingBallActive --> FloatingBallDragging: 手势按下并移动
-        FloatingBallDragging --> FloatingBallActive: 手指抬起，自动平滑吸附至最近侧边
-        FloatingBallActive --> FloatingBallHover: 单击触发
+        TabletNormalApps --> TabletSmartTrackpad: 点击悬浮球一键切入触控板
+        TabletSmartTrackpad --> TabletNormalApps: 点击悬浮球返回 Android 应用
     }
 
-    state "系统视图状态" as SystemView {
-        state "ColorOS 前台模式" as ColorOSState {
-            ColorOSDesktop: 正在使用 Android 应用/桌面
-            LinuxBgKeepAlive: Linux 在后台低耗维持 (1 FPS 挂起)
-        }
-
-        state "Linux 前台模式" as LinuxState {
-            LinuxDisplayFullscreen: SurfaceView 全屏独占 (120Hz)
-            ColorOSBg: Android 系统退居底层
-        }
-    }
-
-    FloatingBallHover --> LinuxDisplayFullscreen: 【当前在 ColorOS】点击悬浮球，切入 Linux
-    FloatingBallHover --> ColorOSDesktop: 【当前在 Linux】点击悬浮球，退回 ColorOS 桌面
-```
-
-### 2. 点击悬浮球一键切换时序图
-```mermaid
-sequenceDiagram
-    autonumber
-    actor User as 用户 (OPPO 平板)
-    participant FloatBall as FloatingSwitchView (悬浮球)
-    participant WindowMgr as Android WindowManager
-    participant HostApp as LinuxDisplayActivity (全屏视图)
-    participant CoreSvc as LinuxHostService (前台保活服务)
-    participant Bridge as Native Display Bridge (C++ NDK)
-    participant X11Server as Embedded Termux-X11
-    participant LinuxSys as Ubuntu 24.04 (XFCE4 桌面)
-
-    Note over User, LinuxSys: 【场景 1：当前在 ColorOS，一键切换至 Linux】
-    User->>FloatBall: 单击悬浮球 (Tap)
-    FloatBall->>FloatBall: 触发点击动效 (呼吸光圈收缩)
-    FloatBall->>HostApp: 发起透明过渡 Intent (FLAG_ACTIVITY_REORDER_TO_FRONT)
-    HostApp->>WindowMgr: 请求 SurfaceView 渲染层置顶呈现
-    HostApp->>Bridge: 附着 ANativeWindow，恢复图形流 (Resume)
-    Bridge->>X11Server: 解除渲染休眠 (Wakeup X11 Renderer)
-    X11Server->>LinuxSys: 恢复 120Hz 垂直同步帧信号 (VSync)
-    LinuxSys->>Bridge: 零拷贝写入 AHardwareBuffer
-    Bridge->>HostApp: 渲染完成上屏 (< 150ms)
-
-    Note over User, LinuxSys: 【场景 2：在 Linux 中工作，一键退回 ColorOS】
-    User->>FloatBall: 再次单击置顶悬浮球
-    FloatBall->>HostApp: 发送最小化指令 (moveTaskToBack)
-    HostApp->>WindowMgr: 退回后台，屏幕还给 ColorOS 桌面
-    HostApp->>Bridge: 挂起前端 Surface 渲染 (Pause Rendering, 降频省电)
-    HostApp->>CoreSvc: 维持 WakeLock 与前台常驻通知
+    StandaloneTabletMode --> DualScreenWorkstation: 插入 Type-C DP / HDMI 线
+    DualScreenWorkstation --> StandaloneTabletMode: 拔出线缆 (毫秒级热迁移回平板内屏)
 ```
 
 ---
 
-## 目录结构规划
+## 📁 源码工程结构
 
 ```
 ├── app/
 │   ├── src/main/
-│   │   ├── java/com/oppo/linuxvm/
-│   │   │   ├── ui/overlay/FloatingSwitchService.kt   # 全局置顶悬浮球服务
-│   │   │   ├── ui/LinuxDisplayActivity.kt           # 全屏 Linux 视口 SurfaceView
-│   │   │   ├── service/LinuxHostService.kt          # 前台保活与 Wakelock 守护
-│   │   │   ├── bridge/NativeBridge.kt               # JNI 接口包装
-│   │   │   └── engine/PRootEngine.kt                # PRoot 容器引擎
-│   │   ├── cpp/                                     # NDK 图形与零拷贝渲染桥接
-│   │   └── assets/                                  # 预置二进制与精简 Ubuntu rootfs
-├── docs/                                            # 架构文档与流程设计
-└── scripts/                                         # 自动化构建脚本
+│   │   ├── java/com/oppo/coloros/linux/
+│   │   │   ├── bridge/
+│   │   │   │   ├── AudioStreamBridge.kt           # PulseAudio Simple Protocol PCM 直通
+│   │   │   │   ├── ClipboardBridge.kt            # Unix Domain Socket 剪贴板全双工同步
+│   │   │   │   ├── ExternalDisplayCoordinator.kt # 跨组件双屏拓扑协调器
+│   │   │   │   └── InputEventBridge.kt           # 触控板加速 / 压感笔 / evdev 键值映射
+│   │   │   ├── core/
+│   │   │   │   ├── IRuntimeEngine.kt             # 容器引擎抽象接口
+│   │   │   │   ├── NativeDisplayBridge.kt        # JNI 原生层接口
+│   │   │   │   ├── PRootEngine.kt                # PRoot 进程树管理与 setsid 级联清理
+│   │   │   │   └── RootfsInstaller.kt            # 流式解包与 Zip-Slip 防御
+│   │   │   ├── display/
+│   │   │   │   ├── ExternalDisplayManager.kt     # 外屏热插拔监听与分辨率自适应
+│   │   │   │   └── LinuxPresentation.kt          # 独立外屏 Presentation 视口
+│   │   │   ├── provider/
+│   │   │   │   └── LinuxStorageProvider.kt       # ColorOS 原生文件管理挂载 (SAF)
+│   │   │   ├── service/
+│   │   │   │   ├── FloatingSwitchService.kt      # 全局置顶磁吸悬浮球
+│   │   │   │   └── LinuxHostService.kt           # 前台保活特权服务与 WakeLock
+│   │   │   └── ui/
+│   │   │       ├── LinuxDisplayActivity.kt       # 平板全屏 120Hz 渲染视口
+│   │   │       ├── MainActivity.kt               # 主控台与权限状态引导
+│   │   │       └── SmartTrackpadActivity.kt      # 智能触控板与 4096 级压感数位板
+│   │   ├── cpp/
+│   │   │   ├── CMakeLists.txt                    # NDK 构建规则
+│   │   │   └── native_bridge.cpp                 # C++20 EGL 管线与 Adreno 屏障
+│   │   └── res/layout/                           # 界面布局 (触控板/悬浮球/外屏/主界面)
+│   └── src/test/java/                            # 自动化单元测试 (手势/安全/协议)
+├── ci/
+│   └── android_build.yml                         # 自动化构建流水线
+├── scripts/
+│   ├── build_rootfs.sh                           # Ubuntu 24.04 aarch64 根文件系统制作
+│   ├── clip_daemon.py                            # Linux 容器剪贴板 IPC 守护脚本
+│   ├── fetch_prebuilt_binaries.sh                # PRoot 预编译库提取
+│   ├── gemini_caller.py                          # Gemini 4 Argon 架构辅助脚本
+│   └── verify_project.sh                         # 100% 静态验证与合规性检查脚本
+├── DEVELOPER_GUIDE.md                            # 开发者与 DIY 二次开发指南
+└── README.md
 ```
+
+---
+
+## ⚡ 快速开始与编译验证
+
+```bash
+# 1. 克隆代码仓库
+git clone https://github.com/Roland114514/coloros-linux-vm.git
+cd coloros-linux-vm
+
+# 2. 执行静态完整性检查 (需全部为 [✓])
+./scripts/verify_project.sh
+
+# 3. 运行全量单元测试
+./gradlew testDebugUnitTest
+
+# 4. 构建 Debug 安装包
+./gradlew assembleDebug
+```
+
+---
+
+## 🤝 贡献与开源协议
+
+* 本项目基于 [Apache License 2.0](LICENSE) 开源。
+* 欢迎提交 Pull Request，共同探索移动端桌面级计算的极限！
