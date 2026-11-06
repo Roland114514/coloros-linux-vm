@@ -162,6 +162,20 @@ class FloatingSwitchService : Service() {
     }
 
     private fun performOneClickSwitch() {
+        val isExternalConnected = com.oppo.coloros.linux.bridge.ExternalDisplayCoordinator.isExternalDisplayConnected(this)
+        if (isExternalConnected) {
+            // 独立双屏模式下：点击悬浮球直接唤起内屏超低延迟智能触控板工作台
+            val intent = Intent(this, com.oppo.coloros.linux.ui.SmartTrackpadActivity::class.java).apply {
+                addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
+                    Intent.FLAG_ACTIVITY_NO_ANIMATION
+                )
+            }
+            startActivity(intent)
+            return
+        }
+
         if (!isLinuxForeground) {
             val intent = Intent(this, LinuxDisplayActivity::class.java).apply {
                 addFlags(

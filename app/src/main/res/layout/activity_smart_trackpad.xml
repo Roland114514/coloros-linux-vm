@@ -1,0 +1,262 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/trackpad_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#0F1117"
+    android:orientation="vertical"
+    android:padding="8dp">
+
+    <!-- 顶部状态与快捷工具栏 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:background="#1A1D26"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="10dp">
+
+        <TextView
+            android:id="@+id/tv_external_display_info"
+            android:layout_width="wrap_content"
+            android:layout_height="30dp"
+            android:background="#263238"
+            android:gravity="center"
+            android:paddingHorizontal="10dp"
+            android:text="外屏 4K 扩展桌面"
+            android:textColor="#00E676"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <HorizontalScrollView
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginHorizontal="8dp"
+            android:layout_weight="1"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/btn_key_esc"
+                    style="?android:attr/buttonBarButtonStyle"
+                    android:layout_width="54dp"
+                    android:layout_height="36dp"
+                    android:text="Esc"
+                    android:textAllCaps="false"
+                    android:textColor="#E2E8F0"
+                    android:textSize="12sp" />
+
+                <Button
+                    android:id="@+id/btn_key_tab"
+                    style="?android:attr/buttonBarButtonStyle"
+                    android:layout_width="54dp"
+                    android:layout_height="36dp"
+                    android:text="Tab"
+                    android:textAllCaps="false"
+                    android:textColor="#E2E8F0"
+                    android:textSize="12sp" />
+
+                <ToggleButton
+                    android:id="@+id/toggle_key_ctrl"
+                    android:layout_width="58dp"
+                    android:layout_height="36dp"
+                    android:textOff="Ctrl"
+                    android:textOn="Ctrl ●"
+                    android:textAllCaps="false"
+                    android:textColor="#E2E8F0"
+                    android:textSize="11sp" />
+
+                <ToggleButton
+                    android:id="@+id/toggle_key_alt"
+                    android:layout_width="58dp"
+                    android:layout_height="36dp"
+                    android:textOff="Alt"
+                    android:textOn="Alt ●"
+                    android:textAllCaps="false"
+                    android:textColor="#E2E8F0"
+                    android:textSize="11sp" />
+
+                <ToggleButton
+                    android:id="@+id/toggle_key_shift"
+                    android:layout_width="60dp"
+                    android:layout_height="36dp"
+                    android:textOff="Shift"
+                    android:textOn="Shift ●"
+                    android:textAllCaps="false"
+                    android:textColor="#E2E8F0"
+                    android:textSize="11sp" />
+
+                <Button
+                    android:id="@+id/btn_key_super"
+                    style="?android:attr/buttonBarButtonStyle"
+                    android:layout_width="60dp"
+                    android:layout_height="36dp"
+                    android:text="Super"
+                    android:textAllCaps="false"
+                    android:textColor="#38BDF8"
+                    android:textSize="12sp" />
+
+                <Button
+                    android:id="@+id/btn_key_copy"
+                    style="?android:attr/buttonBarButtonStyle"
+                    android:layout_width="64dp"
+                    android:layout_height="36dp"
+                    android:text="Ctrl+C"
+                    android:textAllCaps="false"
+                    android:textColor="#E2E8F0"
+                    android:textSize="11sp" />
+
+                <Button
+                    android:id="@+id/btn_key_paste"
+                    style="?android:attr/buttonBarButtonStyle"
+                    android:layout_width="64dp"
+                    android:layout_height="36dp"
+                    android:text="Ctrl+V"
+                    android:textAllCaps="false"
+                    android:textColor="#E2E8F0"
+                    android:textSize="11sp" />
+
+                <Button
+                    android:id="@+id/btn_key_left"
+                    style="?android:attr/buttonBarButtonStyle"
+                    android:layout_width="40dp"
+                    android:layout_height="36dp"
+                    android:text="←"
+                    android:textColor="#E2E8F0" />
+
+                <Button
+                    android:id="@+id/btn_key_up"
+                    style="?android:attr/buttonBarButtonStyle"
+                    android:layout_width="40dp"
+                    android:layout_height="36dp"
+                    android:text="↑"
+                    android:textColor="#E2E8F0" />
+
+                <Button
+                    android:id="@+id/btn_key_down"
+                    style="?android:attr/buttonBarButtonStyle"
+                    android:layout_width="40dp"
+                    android:layout_height="36dp"
+                    android:text="↓"
+                    android:textColor="#E2E8F0" />
+
+                <Button
+                    android:id="@+id/btn_key_right"
+                    style="?android:attr/buttonBarButtonStyle"
+                    android:layout_width="40dp"
+                    android:layout_height="36dp"
+                    android:text="→"
+                    android:textColor="#E2E8F0" />
+            </LinearLayout>
+        </HorizontalScrollView>
+
+        <Button
+            android:id="@+id/btn_toggle_ime"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:backgroundTint="#2D3748"
+            android:text="软键盘"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp" />
+
+        <Button
+            android:id="@+id/btn_switch_display_target"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:layout_marginStart="8dp"
+            android:backgroundTint="#0284C7"
+            android:text="拉回内屏"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <!-- 核心多模态触控与 OPPO Pencil 数位板感应区 -->
+    <FrameLayout
+        android:id="@+id/trackpad_surface_area"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginVertical="8dp"
+        android:layout_weight="1"
+        android:background="#161922"
+        android:clickable="true"
+        android:focusable="true"
+        android:focusableInTouchMode="true">
+
+        <!-- 中心视觉引导水印 -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="ColorOS 17 Pro Trackpad &amp; Stylus Tablet"
+                android:textColor="#2E3646"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tv_trackpad_mode_hint"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text="多指智能触控板模式 (单指移动 · 双指滚动/右击 · 三指切工作区)"
+                android:textColor="#64748B"
+                android:textSize="13sp" />
+        </LinearLayout>
+    </FrameLayout>
+
+    <!-- 底部独立物理鼠标按键模拟区 (左键 / 中键 / 右键) -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btn_mouse_left"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="4"
+            android:backgroundTint="#1E2430"
+            android:text="左键 (LMB)"
+            android:textColor="#94A3B8"
+            android:textSize="13sp" />
+
+        <View
+            android:layout_width="8dp"
+            android:layout_height="match_parent" />
+
+        <Button
+            android:id="@+id/btn_mouse_middle"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="2"
+            android:backgroundTint="#1E2430"
+            android:text="中键"
+            android:textColor="#64748B"
+            android:textSize="12sp" />
+
+        <View
+            android:layout_width="8dp"
+            android:layout_height="match_parent" />
+
+        <Button
+            android:id="@+id/btn_mouse_right"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="4"
+            android:backgroundTint="#1E2430"
+            android:text="右键 (RMB)"
+            android:textColor="#94A3B8"
+            android:textSize="13sp" />
+    </LinearLayout>
+
+</LinearLayout>

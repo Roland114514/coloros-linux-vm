@@ -95,6 +95,7 @@ class ExternalDisplayManager(
             display = display,
             onSurfaceReady = { extSurface, width, height ->
                 Log.i(TAG, "外屏 Surface 就绪，切换 Linux 渲染管线至 ${width}x${height}")
+                com.oppo.coloros.linux.bridge.InputEventBridge.updateExternalResolution(width, height)
                 val dpi = calculateOptimalDpi(width, height)
                 NativeDisplayBridge.attachSurface(extSurface, width, height, dpi)
                 onDisplayModeChanged(true)
@@ -137,6 +138,17 @@ class ExternalDisplayManager(
             width >= 3840 || height >= 2160 -> 192 // 4K 缩放
             width >= 2560 || height >= 1440 -> 144 // 2K 缩放
             else -> 96                             // 1080P 标准 100% 像素点对点
+        }
+    }
+
+    fun togglePresentationDisplay(forceInternal: Boolean) {
+        if (forceInternal) {
+            detachFromExternalDisplay()
+        } else {
+            val displays = displayManager.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION)
+            if (displays.isNotEmpty()) {
+                attachToExternalDisplay(displays.first())
+            }
         }
     }
 

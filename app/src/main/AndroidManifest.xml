@@ -55,6 +55,15 @@
             android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"
             android:windowSoftInputMode="adjustNothing" />
 
+        <!-- 平板智能触控板与数位板工作台 (独立双屏模式专用) -->
+        <activity
+            android:name=".ui.SmartTrackpadActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.ColorOSLinux"
+            android:windowSoftInputMode="adjustNothing" />
+
         <!-- 全局半透明置顶悬浮球服务 -->
         <service
             android:name=".service.FloatingSwitchService"

@@ -73,6 +73,7 @@ class LinuxHostService : Service() {
             appendLog(if (isExternalActive) "[DISPLAY] 外接显示器已点亮，独占输出 Linux 4K 桌面" else "[DISPLAY] 外接显示器断开，回切至平板内屏")
         }
         externalDisplayManager.initialize(null, 1920, 1080)
+        com.oppo.coloros.linux.bridge.ExternalDisplayCoordinator.registerManager(externalDisplayManager)
 
         clipboardBridge = ClipboardBridge(applicationContext)
         clipboardBridge.start()
@@ -203,6 +204,7 @@ class LinuxHostService : Service() {
         audioBridge?.stop()
         audioBridge = null
         clipboardBridge.stop()
+        com.oppo.coloros.linux.bridge.ExternalDisplayCoordinator.unregisterManager()
         externalDisplayManager.release()
 
         if (::wakeLock.isInitialized && wakeLock.isHeld) {
