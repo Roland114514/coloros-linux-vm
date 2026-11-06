@@ -24,6 +24,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import java.util.concurrent.CopyOnWriteArrayList
 
 class LinuxHostService : Service() {
 
@@ -33,6 +34,11 @@ class LinuxHostService : Service() {
         private const val CHANNEL_ID = "coloros_linux_daemon_channel"
     }
 
+    interface StateListener {
+        fun onStateChanged(isRunning: Boolean)
+        fun onLogAppended(logLine: String)
+    }
+
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private lateinit var wakeLock: PowerManager.WakeLock
     private var audioBridge: AudioStreamBridge? = null
@@ -40,6 +46,9 @@ class LinuxHostService : Service() {
         private set
     lateinit var runtimeEngine: IRuntimeEngine
         private set
+
+    private val listeners = CopyOnWriteArrayList<StateListener>()
+    private val logBuffer = StringBuilder()
 
     inner class LocalBinder : Binder() {
         fun getService(): LinuxHostService = this@LinuxHostService
@@ -57,11 +66,64 @@ class LinuxHostService : Service() {
         acquirePartialWakeLock()
         startForegroundDaemon()
         startAudioBridge()
-        bootLinuxEnvironment()
+        startLinuxEnvironment()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         return START_STICKY
+    }
+
+    fun registerStateListener(listener: StateListener) {
+        listeners.add(listener)
+        listener.onStateChanged(isContainerRunning())
+    }
+
+    fun unregisterStateListener(listener: StateListener) {
+        listeners.remove(listener)
+    }
+
+    fun isContainerRunning(): Boolean {
+        return runtimeEngine.currentState == IRuntimeEngine.State.RUNNING
+    }
+
+    fun getLogHistory(): String = logBuffer.toString()
+
+    fun startLinuxEnvironment() {
+        serviceScope.launch(Dispatchers.IO) {
+            notifyState(false)
+            val installResult = rootfsInstaller.installIfNeeded()
+            if (installResult.isSuccess) {
+                runtimeEngine.bootContainer { logLine ->
+                    appendLog(logLine)
+                    if (isContainerRunning()) {
+                        notifyState(true)
+                    }
+                }
+                notifyState(isContainerRunning())
+            } else {
+                appendLog("[ERROR] Rootfs install failed: ${installResult.exceptionOrNull()?.message}")
+                notifyState(false)
+            }
+        }
+    }
+
+    fun stopLinuxEnvironment() {
+        runtimeEngine.shutdownContainer()
+        notifyState(false)
+    }
+
+    private fun appendLog(line: String) {
+        if (logBuffer.length > 50000) {
+            logBuffer.delete(0, 10000)
+        }
+        logBuffer.append(line).append("\n")
+        listeners.forEach { it.onLogAppended(line) }
+    }
+
+    private fun notifyState(running: Boolean) {
+        serviceScope.launch(Dispatchers.Main) {
+            listeners.forEach { it.onStateChanged(running) }
+        }
     }
 
     private fun acquirePartialWakeLock() {
@@ -88,7 +150,7 @@ class LinuxHostService : Service() {
             "Ubuntu 24.04 Container Daemon",
             NotificationManager.IMPORTANCE_LOW
         ).apply {
-            description = "Keeps Linux Desktop and background compilation tasks alive on ColorOS 17"
+            description = "Keeps Linux Desktop and background tasks alive on ColorOS 17"
             setShowBadge(false)
         }
         manager.createNotificationChannel(channel)
@@ -118,21 +180,6 @@ class LinuxHostService : Service() {
             )
         } else {
             startForeground(NOTIFICATION_ID, notification)
-        }
-    }
-
-    private fun bootLinuxEnvironment() {
-        serviceScope.launch(Dispatchers.IO) {
-            Log.i(TAG, "Checking rootfs environment before boot...")
-            val installResult = rootfsInstaller.installIfNeeded()
-            if (installResult.isSuccess) {
-                Log.i(TAG, "Rootfs is ready, booting PRoot container...")
-                runtimeEngine.bootContainer { logLine ->
-                    Log.d(TAG, "[Ubuntu] $logLine")
-                }
-            } else {
-                Log.e(TAG, "Rootfs installation failed: ${installResult.exceptionOrNull()}")
-            }
         }
     }
 

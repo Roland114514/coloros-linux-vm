@@ -1,13 +1,15 @@
 package com.oppo.coloros.linux.ui
 
 import android.annotation.SuppressLint
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.ServiceConnection
 import android.net.Uri
 import android.os.Bundle
+import android.os.IBinder
 import android.os.PowerManager
 import android.provider.Settings
-import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -20,9 +22,10 @@ import com.oppo.coloros.linux.core.NativeDisplayBridge
 import com.oppo.coloros.linux.service.FloatingSwitchService
 import com.oppo.coloros.linux.service.LinuxHostService
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), LinuxHostService.StateListener {
 
-    private var isContainerRunning = false
+    private var hostService: LinuxHostService? = null
+    private var isBound = false
 
     private lateinit var tvContainerStatus: TextView
     private lateinit var tvOverlayStatus: TextView
@@ -32,6 +35,22 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnEnterDesktop: MaterialButton
     private lateinit var switchFloatingBall: MaterialSwitch
     private lateinit var switchHighRefresh: MaterialSwitch
+
+    private val serviceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+            val binder = service as LinuxHostService.LocalBinder
+            hostService = binder.getService()
+            isBound = true
+            hostService?.registerStateListener(this@MainActivity)
+            updateContainerUI(hostService?.isContainerRunning() == true)
+        }
+
+        override fun onServiceDisconnected(name: ComponentName?) {
+            isBound = false
+            hostService = null
+            updateContainerUI(false)
+        }
+    }
 
     private val overlayPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -56,6 +75,21 @@ class MainActivity : AppCompatActivity() {
         updatePermissionStatus()
     }
 
+    override fun onStart() {
+        super.onStart()
+        val intent = Intent(this, LinuxHostService::class.java)
+        bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (isBound) {
+            hostService?.unregisterStateListener(this)
+            unbindService(serviceConnection)
+            isBound = false
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         updatePermissionStatus()
@@ -71,7 +105,7 @@ class MainActivity : AppCompatActivity() {
         switchFloatingBall = findViewById(R.id.switch_floating_ball)
         switchHighRefresh = findViewById(R.id.switch_high_refresh)
 
-        // 1. 悬浮窗权限申请与开关
+        // 1. 悬浮窗开关与权限管理
         switchFloatingBall.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) {
                 if (Settings.canDrawOverlays(this)) {
@@ -85,12 +119,12 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // 2. 电池优化白名单申请 (防 ColorOS 杀后台)
+        // 2. 电池优化白名单申请
         btnBatteryOpt.setOnClickListener {
             requestIgnoreBatteryOptimizations()
         }
 
-        // 3. 120Hz 满血高刷锁定开关
+        // 3. 120Hz 高刷锁定
         switchHighRefresh.setOnCheckedChangeListener { _, isChecked ->
             val targetFps = if (isChecked) 120 else 60
             try {
@@ -99,19 +133,20 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "目标渲染帧率已设为: ${targetFps}Hz", Toast.LENGTH_SHORT).show()
         }
 
-        // 4. 启动/停止 Linux 容器守护服务
+        // 4. 容器开关调度
         btnToggleContainer.setOnClickListener {
-            if (!isContainerRunning) {
-                startLinuxContainer()
+            val service = hostService
+            if (service != null && service.isContainerRunning()) {
+                service.stopLinuxEnvironment()
             } else {
-                stopLinuxContainer()
+                startLinuxService()
             }
         }
 
-        // 5. 立即进入 Linux 极速桌面
+        // 5. 直达 Linux 全屏桌面
         btnEnterDesktop.setOnClickListener {
-            if (!isContainerRunning) {
-                startLinuxContainer()
+            if (hostService?.isContainerRunning() != true) {
+                startLinuxService()
             }
             val intent = Intent(this, LinuxDisplayActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP
@@ -121,28 +156,14 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun startLinuxContainer() {
+    private fun startLinuxService() {
         val serviceIntent = Intent(this, LinuxHostService::class.java)
         ContextCompat.startForegroundService(this, serviceIntent)
-        isContainerRunning = true
-        tvContainerStatus.text = "运行中 (Wayland/X11 IPC 就绪)"
-        statusIndicator.setBackgroundResource(android.R.color.holo_green_light)
-        btnToggleContainer.text = "停止容器引擎"
-        btnEnterDesktop.isEnabled = true
+        hostService?.startLinuxEnvironment()
 
-        // 默认连带开启悬浮球
         if (Settings.canDrawOverlays(this) && !switchFloatingBall.isChecked) {
             switchFloatingBall.isChecked = true
         }
-    }
-
-    private fun stopLinuxContainer() {
-        stopService(Intent(this, LinuxHostService::class.java))
-        isContainerRunning = false
-        tvContainerStatus.text = "已停止"
-        statusIndicator.setBackgroundResource(android.R.color.holo_red_light)
-        btnToggleContainer.text = "启动容器引擎"
-        btnEnterDesktop.isEnabled = false
     }
 
     private fun startFloatingBallService() {
@@ -179,5 +200,29 @@ class MainActivity : AppCompatActivity() {
         tvOverlayStatus.text = if (hasOverlay) "已授权" else "未授权 (点击申请)"
         btnBatteryOpt.isEnabled = !hasBatteryWhitelist
         btnBatteryOpt.text = if (hasBatteryWhitelist) "已锁定后台不杀 (白名单)" else "申请省电白名单 (必选)"
+    }
+
+    private fun updateContainerUI(isRunning: Boolean) {
+        runOnUiThread {
+            if (isRunning) {
+                tvContainerStatus.text = "运行中 (X11 & PulseAudio 正常)"
+                statusIndicator.setBackgroundResource(android.R.color.holo_green_light)
+                btnToggleContainer.text = "停止容器引擎"
+                btnEnterDesktop.isEnabled = true
+            } else {
+                tvContainerStatus.text = "已停止"
+                statusIndicator.setBackgroundResource(android.R.color.holo_red_light)
+                btnToggleContainer.text = "启动容器引擎"
+                btnEnterDesktop.isEnabled = false
+            }
+        }
+    }
+
+    override fun onStateChanged(isRunning: Boolean) {
+        updateContainerUI(isRunning)
+    }
+
+    override fun onLogAppended(logLine: String) {
+        // 后台日志接收
     }
 }

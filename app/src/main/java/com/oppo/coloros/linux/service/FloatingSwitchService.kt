@@ -5,27 +5,24 @@ import android.annotation.SuppressLint
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
-import android.view.Gravity
-import android.view.LayoutInflater
-import android.view.MotionEvent
-import android.view.View
-import android.view.ViewConfiguration
-import android.view.WindowManager
+import android.util.DisplayMetrics
+import android.view.*
 import android.view.animation.DecelerateInterpolator
 import com.oppo.coloros.linux.R
 import com.oppo.coloros.linux.ui.LinuxDisplayActivity
-import kotlin.math.abs
+import kotlin.math.hypot
+import kotlin.math.max
+import kotlin.math.min
 
 class FloatingSwitchService : Service() {
 
     companion object {
-        // 记录当前是否处于 Linux 全屏前台状态
         @Volatile
         var isLinuxForeground: Boolean = false
-        
         const val ACTION_MINIMIZE_LINUX = "com.oppo.coloros.linux.ACTION_MINIMIZE_LINUX"
     }
 
@@ -42,6 +39,7 @@ class FloatingSwitchService : Service() {
     private var initialTouchX = 0f
     private var initialTouchY = 0f
     private var isDragging = false
+    private var edgeAnimator: ValueAnimator? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -54,9 +52,17 @@ class FloatingSwitchService : Service() {
     }
 
     private fun updateScreenDimensions() {
-        val bounds = windowManager.currentWindowMetrics.bounds
-        screenWidth = bounds.width()
-        screenHeight = bounds.height()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val bounds = windowManager.currentWindowMetrics.bounds
+            screenWidth = bounds.width()
+            screenHeight = bounds.height()
+        } else {
+            val metrics = DisplayMetrics()
+            @Suppress("DEPRECATION")
+            windowManager.defaultDisplay.getRealMetrics(metrics)
+            screenWidth = metrics.widthPixels
+            screenHeight = metrics.heightPixels
+        }
     }
 
     @SuppressLint("InflateParams", "ClickableViewAccessibility")
@@ -91,6 +97,7 @@ class FloatingSwitchService : Service() {
     private fun handleTouch(view: View, event: MotionEvent): Boolean {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
+                edgeAnimator?.cancel()
                 updateScreenDimensions()
                 initialX = layoutParams.x
                 initialY = layoutParams.y
@@ -98,22 +105,22 @@ class FloatingSwitchService : Service() {
                 initialTouchY = event.rawY
                 isDragging = false
 
-                // 触控瞬间立刻恢复高亮度不透明并轻微放大
                 view.animate().alpha(1.0f).scaleX(1.12f).scaleY(1.12f).setDuration(120).start()
                 return true
             }
 
             MotionEvent.ACTION_MOVE -> {
-                val dx = (event.rawX - initialTouchX).toInt()
-                val dy = (event.rawY - initialTouchY).toInt()
+                val dx = event.rawX - initialTouchX
+                val dy = event.rawY - initialTouchY
 
-                if (!isDragging && (abs(dx) > touchSlop || abs(dy) > touchSlop)) {
+                // 高精度消抖：欧氏距离超过系统 touchSlop 才判定为拖拽，防止触控微抖动导致误触
+                if (!isDragging && hypot(dx.toDouble(), dy.toDouble()) > touchSlop) {
                     isDragging = true
                 }
 
                 if (isDragging) {
-                    layoutParams.x = (initialX + dx).coerceIn(0, screenWidth - view.width)
-                    layoutParams.y = (initialY + dy).coerceIn(0, screenHeight - view.height)
+                    layoutParams.x = max(0, min((initialX + dx).toInt(), screenWidth - view.width))
+                    layoutParams.y = max(0, min((initialY + dy).toInt(), screenHeight - view.height))
                     windowManager.updateViewLayout(floatingView, layoutParams)
                 }
                 return true
@@ -134,11 +141,28 @@ class FloatingSwitchService : Service() {
     }
 
     /**
-     * 核心功能：一键在 ColorOS 17 与 Linux 桌面之间极速切换
+     * 屏幕横竖屏旋转动态自适应，防止悬浮球越界丢失
      */
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        val oldWidth = screenWidth
+        val oldHeight = screenHeight
+        updateScreenDimensions()
+
+        if (oldWidth > 0 && oldHeight > 0 && ::floatingView.isInitialized && floatingView.isAttachedToWindow) {
+            edgeAnimator?.cancel()
+            val yRatio = layoutParams.y.toFloat() / oldHeight
+            layoutParams.y = max(0, min((yRatio * screenHeight).toInt(), screenHeight - floatingView.height))
+
+            val isOnRight = layoutParams.x > oldWidth / 2
+            layoutParams.x = if (isOnRight) screenWidth - floatingView.width else 0
+
+            windowManager.updateViewLayout(floatingView, layoutParams)
+        }
+    }
+
     private fun performOneClickSwitch() {
         if (!isLinuxForeground) {
-            // 当前在 ColorOS -> 切入 Linux 全屏桌面
             val intent = Intent(this, LinuxDisplayActivity::class.java).apply {
                 addFlags(
                     Intent.FLAG_ACTIVITY_NEW_TASK or
@@ -148,19 +172,15 @@ class FloatingSwitchService : Service() {
             }
             startActivity(intent)
         } else {
-            // 当前在 Linux -> 退回 ColorOS 桌面
             sendBroadcast(Intent(ACTION_MINIMIZE_LINUX).setPackage(packageName))
         }
     }
 
-    /**
-     * 释放手指后平滑吸附到屏幕左侧或右侧边缘
-     */
     private fun snapToNearestEdge(viewWidth: Int) {
         val centerX = layoutParams.x + viewWidth / 2
         val targetX = if (centerX < screenWidth / 2) 0 else screenWidth - viewWidth
 
-        ValueAnimator.ofInt(layoutParams.x, targetX).apply {
+        edgeAnimator = ValueAnimator.ofInt(layoutParams.x, targetX).apply {
             duration = 250
             interpolator = DecelerateInterpolator()
             addUpdateListener { animator ->
@@ -173,9 +193,6 @@ class FloatingSwitchService : Service() {
         }
     }
 
-    /**
-     * 静置后变为 40% 透明度，避免遮挡平板视野
-     */
     private fun fadeToIdleState() {
         floatingView.animate()
             .alpha(0.4f)
@@ -186,6 +203,7 @@ class FloatingSwitchService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        edgeAnimator?.cancel()
         if (::floatingView.isInitialized && floatingView.isAttachedToWindow) {
             windowManager.removeView(floatingView)
         }

@@ -2,70 +2,52 @@ package com.oppo.coloros.linux.bridge
 
 import android.media.AudioAttributes
 import android.media.AudioFormat
-import android.media.AudioManager
 import android.media.AudioTrack
+import android.os.Process
 import android.util.Log
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
-import java.io.InputStream
-import java.net.InetAddress
-import java.net.ServerSocket
+import java.io.BufferedInputStream
+import java.io.IOException
+import java.net.InetSocketAddress
 import java.net.Socket
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * PulseAudio TCP 本地服务端音频直通桥接
- * Linux 内部通过环境变量 PULSE_SERVER=tcp:127.0.0.1:4713 将音频流实时注入 Android AudioTrack
+ * 接收 Linux PulseAudio module-simple-protocol-tcp 输出的原始 PCM 流 (44100Hz, 16-bit, Stereo)
+ * 具备断线指数退避重连、防阻塞环形缓冲与低延迟硬件播放能力
  */
 class AudioStreamBridge(private val port: Int = 4713) {
-
     companion object {
         private const val TAG = "AudioStreamBridge"
+        private const val HOST = "127.0.0.1"
         private const val SAMPLE_RATE = 44100
         private const val CHANNEL_CONFIG = AudioFormat.CHANNEL_OUT_STEREO
         private const val AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT
+        private const val CONNECT_TIMEOUT_MS = 2500
+        private const val READ_TIMEOUT_MS = 5000
     }
 
-    private var serverSocket: ServerSocket? = null
-    private var audioTrack: AudioTrack? = null
-    private var bridgeJob: Job? = null
-    private val scope = CoroutineScope(Dispatchers.IO)
-
+    private val isRunning = AtomicBoolean(false)
+    private var workerThread: Thread? = null
     @Volatile
-    private var isRunning = false
+    private var activeSocket: Socket? = null
 
     fun start() {
-        if (isRunning) return
-        isRunning = true
+        if (!isRunning.compareAndSet(false, true)) return
 
-        bridgeJob = scope.launch {
-            try {
-                initAudioTrack()
-                serverSocket = ServerSocket(port, 5, InetAddress.getByName("127.0.0.1"))
-                Log.i(TAG, "AudioStreamBridge listening on 127.0.0.1:$port")
-
-                while (isActive && isRunning) {
-                    val clientSocket = serverSocket?.accept() ?: break
-                    Log.i(TAG, "Client connected to audio bridge: ${clientSocket.inetAddress}")
-                    handleClient(clientSocket)
-                }
-            } catch (e: Exception) {
-                if (isRunning) {
-                    Log.e(TAG, "Error in audio server loop", e)
-                }
-            } finally {
-                stop()
-            }
+        workerThread = Thread({
+            Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
+            runAudioLoop()
+        }, "PulseSimpleAudioThread").apply {
+            isDaemon = true
+            start()
         }
     }
 
-    private fun initAudioTrack() {
+    private fun runAudioLoop() {
         val minBufferSize = AudioTrack.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT)
-        val bufferSize = minBufferSize * 2
+        val bufferSize = maxOf(minBufferSize * 4, 8192)
 
-        audioTrack = AudioTrack.Builder()
+        val audioTrack = AudioTrack.Builder()
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_MEDIA)
@@ -82,47 +64,81 @@ class AudioStreamBridge(private val port: Int = 4713) {
             .setBufferSizeInBytes(bufferSize)
             .setTransferMode(AudioTrack.MODE_STREAM)
             .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
-            .build().apply {
-                play()
-            }
-    }
+            .build()
 
-    private fun handleClient(socket: Socket) {
-        scope.launch {
-            try {
-                socket.tcpNoDelay = true
-                val inputStream: InputStream = socket.getInputStream()
-                val buffer = ByteArray(4096)
-                var bytesRead: Int
+        val pcmBuffer = ByteArray(4096)
+        var retryDelayMs = 500L
 
-                while (isRunning && inputStream.read(buffer).also { bytesRead = it } != -1) {
-                    audioTrack?.write(buffer, 0, bytesRead)
-                }
-            } catch (e: Exception) {
-                Log.d(TAG, "Audio stream client closed: ${e.message}")
-            } finally {
+        try {
+            audioTrack.play()
+
+            while (isRunning.get()) {
+                var socket: Socket? = null
                 try {
-                    socket.close()
-                } catch (_: Exception) {}
+                    socket = Socket()
+                    activeSocket = socket
+                    socket.tcpNoDelay = true
+                    socket.receiveBufferSize = bufferSize
+                    socket.soTimeout = READ_TIMEOUT_MS
+                    socket.connect(InetSocketAddress(HOST, port), CONNECT_TIMEOUT_MS)
+
+                    Log.i(TAG, "Connected to Linux PulseAudio Simple Protocol TCP server on port $port")
+                    retryDelayMs = 500L
+
+                    val inputStream = BufferedInputStream(socket.getInputStream(), bufferSize)
+
+                    while (isRunning.get() && !socket.isClosed) {
+                        val bytesRead = inputStream.read(pcmBuffer)
+                        if (bytesRead == -1) {
+                            Log.w(TAG, "PulseAudio stream reached EOF, reconnecting...")
+                            break
+                        }
+                        if (bytesRead > 0) {
+                            val alignedBytes = bytesRead - (bytesRead % 4)
+                            if (alignedBytes > 0) {
+                                audioTrack.write(pcmBuffer, 0, alignedBytes, AudioTrack.WRITE_BLOCKING)
+                            }
+                        }
+                    }
+                } catch (e: IOException) {
+                    if (isRunning.get()) {
+                        try {
+                            Thread.sleep(retryDelayMs)
+                            retryDelayMs = minOf(retryDelayMs * 2, 3000L)
+                        } catch (ie: InterruptedException) {
+                            Thread.currentThread().interrupt()
+                            break
+                        }
+                    }
+                } finally {
+                    try {
+                        socket?.close()
+                    } catch (_: Exception) {}
+                    activeSocket = null
+                }
             }
+        } catch (e: Exception) {
+            Log.e(TAG, "Fatal error in AudioTrack playback", e)
+        } finally {
+            try {
+                if (audioTrack.playState == AudioTrack.PLAYSTATE_PLAYING) {
+                    audioTrack.stop()
+                }
+            } catch (_: Exception) {}
+            audioTrack.release()
+            Log.i(TAG, "AudioStreamBridge terminated cleanly.")
         }
     }
 
     fun stop() {
-        isRunning = false
-        bridgeJob?.cancel()
-        bridgeJob = null
-
+        if (!isRunning.compareAndSet(true, false)) return
         try {
-            serverSocket?.close()
+            activeSocket?.close()
         } catch (_: Exception) {}
-        serverSocket = null
-
+        workerThread?.interrupt()
         try {
-            audioTrack?.stop()
-            audioTrack?.release()
-        } catch (_: Exception) {}
-        audioTrack = null
-        Log.i(TAG, "AudioStreamBridge stopped.")
+            workerThread?.join(1000)
+        } catch (_: InterruptedException) {}
+        workerThread = null
     }
 }
