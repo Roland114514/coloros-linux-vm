@@ -48,4 +48,8 @@ object ExternalDisplayCoordinator {
         // 若当前外屏活跃，则临时拉回平板内屏；若已拉回，则重新推送至外屏
         manager.togglePresentationDisplay(forceInternal = currentlyConnected)
     }
+
+    fun updateInternalSurface(surface: android.view.Surface?, width: Int, height: Int, dpi: Int = 320) {
+        displayManagerRef?.updateInternalSurface(surface, width, height, dpi)
+    }
 }

@@ -103,9 +103,9 @@ object InputEventBridge {
     @Volatile var externalDisplayWidth: Int = 1920
     @Volatile var externalDisplayHeight: Int = 1080
 
-    // 当前按下的虚拟鼠标按键状态掩码
-    private var activeMouseButtons: Int = MOUSE_BUTTON_NONE
-    private var lastMoveTimestamp: Long = 0L
+    // 当前按下的虚拟鼠标按键状态原子掩码 (线程安全)
+    private val activeMouseButtonMask = java.util.concurrent.atomic.AtomicInteger(MOUSE_BUTTON_NONE)
+    @Volatile private var lastMoveTimestamp: Long = 0L
 
     /**
      * 更新外屏目标分辨率（在 ExternalDisplayManager 绑定外屏时调用）
@@ -132,23 +132,21 @@ object InputEventBridge {
         val acceleratedDx = rawDx * acceleration
         val acceleratedDy = rawDy * acceleration
 
-        NativeDisplayBridge.sendRelativeMouseEvent(acceleratedDx, acceleratedDy, activeMouseButtons)
+        NativeDisplayBridge.sendRelativeMouseEvent(acceleratedDx, acceleratedDy, activeMouseButtonMask.get())
     }
 
     /**
-     * 智能触控板：模拟鼠标左/中/右键按下与释放
+     * 智能触控板：模拟鼠标左/中/右键按下与释放 (原子更新防竞态)
      */
-    fun sendMouseButton(buttonMask: Int, isDown: Boolean) {
-        activeMouseButtons = if (isDown) {
-            activeMouseButtons or buttonMask
-        } else {
-            activeMouseButtons and buttonMask.inv()
+    fun setMouseButtonState(buttonMask: Int, isDown: Boolean) {
+        val newMask = activeMouseButtonMask.updateAndGet { current ->
+            if (isDown) current or buttonMask else current and buttonMask.inv()
         }
-        NativeDisplayBridge.sendRelativeMouseEvent(0f, 0f, activeMouseButtons)
+        NativeDisplayBridge.sendRelativeMouseEvent(0f, 0f, newMask)
     }
 
-    fun setMouseButtonState(buttonMask: Int, isDown: Boolean) {
-        sendMouseButton(buttonMask, isDown)
+    fun sendMouseButton(buttonMask: Int, isDown: Boolean) {
+        setMouseButtonState(buttonMask, isDown)
     }
 
     /**

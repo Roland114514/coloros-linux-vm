@@ -90,6 +90,7 @@ echo "7. 检查单测覆盖..."
 check_file "app/src/test/java/com/oppo/coloros/linux/bridge/InputEventBridgeTest.kt"
 check_file "app/src/test/java/com/oppo/coloros/linux/display/ExternalDisplayManagerTest.kt"
 check_file "app/src/test/java/com/oppo/coloros/linux/ui/SmartTrackpadGestureTest.kt"
+check_file "app/src/test/java/com/oppo/coloros/linux/security/StorageSecurityAndConcurrencyTest.kt"
 
 echo "--------------------------------------------------------"
 if [ "$FAILED" -eq 0 ]; then

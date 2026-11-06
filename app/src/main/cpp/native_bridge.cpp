@@ -106,7 +106,7 @@ namespace {
                     }
                     if (g_pendingWindow != nullptr) {
                         currentWindow = g_pendingWindow;
-                        ANativeWindow_acquire(currentWindow);
+                        g_pendingWindow = nullptr;
                         surface = eglCreateWindowSurface(display, config, currentWindow, nullptr);
                         if (surface != EGL_NO_SURFACE) {
                             eglMakeCurrent(display, surface, surface, context);
@@ -114,6 +114,10 @@ namespace {
                             applyHighRefreshRate(currentWindow, g_targetFrameRate.load());
                             glViewport(0, 0, g_surfaceWidth, g_surfaceHeight);
                             LOGI("Surface Attached: %dx%d @ %dHz", g_surfaceWidth, g_surfaceHeight, g_targetFrameRate.load());
+                        } else {
+                            LOGE("Failed to create EGLWindowSurface: 0x%x", eglGetError());
+                            ANativeWindow_release(currentWindow);
+                            currentWindow = nullptr;
                         }
                     }
                     g_surfaceChanged = false;
@@ -149,9 +153,20 @@ namespace {
         if (surface != EGL_NO_SURFACE) {
             eglMakeCurrent(display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
             eglDestroySurface(display, surface);
+            surface = EGL_NO_SURFACE;
         }
         if (currentWindow != nullptr) {
             ANativeWindow_release(currentWindow);
+            currentWindow = nullptr;
+        }
+        {
+            std::lock_guard<std::mutex> lock(g_syncMutex);
+            if (g_pendingWindow != nullptr) {
+                ANativeWindow_release(g_pendingWindow);
+                g_pendingWindow = nullptr;
+            }
+            g_surfaceDetachedAck = true;
+            g_syncCv.notify_all();
         }
         if (context != EGL_NO_CONTEXT) eglDestroyContext(display, context);
         eglTerminate(display);

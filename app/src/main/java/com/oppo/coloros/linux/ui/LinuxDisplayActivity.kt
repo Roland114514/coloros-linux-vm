@@ -140,13 +140,21 @@ class LinuxDisplayActivity : Activity(), SurfaceHolder.Callback {
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
         val dpi = resources.displayMetrics.densityDpi
         try {
-            NativeDisplayBridge.attachSurface(holder.surface, width, height, dpi)
+            if (com.oppo.coloros.linux.bridge.ExternalDisplayCoordinator.isExternalDisplayConnected(this)) {
+                com.oppo.coloros.linux.bridge.ExternalDisplayCoordinator.updateInternalSurface(holder.surface, width, height, dpi)
+            } else {
+                NativeDisplayBridge.attachSurface(holder.surface, width, height, dpi)
+            }
         } catch (_: UnsatisfiedLinkError) {}
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         try {
-            NativeDisplayBridge.detachSurface()
+            if (com.oppo.coloros.linux.bridge.ExternalDisplayCoordinator.isExternalDisplayConnected(this)) {
+                com.oppo.coloros.linux.bridge.ExternalDisplayCoordinator.updateInternalSurface(null, 0, 0)
+            } else {
+                NativeDisplayBridge.detachSurface()
+            }
         } catch (_: UnsatisfiedLinkError) {}
     }
 

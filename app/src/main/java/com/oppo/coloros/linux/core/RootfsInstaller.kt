@@ -163,6 +163,12 @@ class RootfsInstaller(private val context: Context) {
                 }
 
                 val outFile = File(destDir, cleanName)
+                val destPrefix = if (destDir.canonicalPath.endsWith(File.separator)) destDir.canonicalPath else destDir.canonicalPath + File.separator
+                if (!outFile.canonicalPath.startsWith(destPrefix)) {
+                    Log.w(TAG, "Zip-Slip path traversal attempt blocked: $cleanName")
+                    skipTarPadding(gzipIn, size)
+                    continue
+                }
                 when (typeFlag) {
                     '5' -> outFile.mkdirs()
                     '2' -> { // Symlink
@@ -256,6 +262,21 @@ class RootfsInstaller(private val context: Context) {
         tmpDir.setWritable(true, false)
         tmpDir.setReadable(true, false)
         tmpDir.setExecutable(true, false)
+
+        // 部署剪贴板全双工 IPC 守护脚本
+        try {
+            val binDir = File(rootfsDir, "usr/local/bin").apply { mkdirs() }
+            val targetDaemon = File(binDir, "clip_daemon.py")
+            context.assets.open("scripts/clip_daemon.py").use { input ->
+                FileOutputStream(targetDaemon).use { output ->
+                    input.copyTo(output)
+                }
+            }
+            targetDaemon.setExecutable(true, false)
+            Log.i(TAG, "Deployed clip_daemon.py into rootfs: ${targetDaemon.absolutePath}")
+        } catch (e: Exception) {
+            Log.w(TAG, "Note: assets/scripts/clip_daemon.py not copied: ${e.message}")
+        }
     }
 
     private fun createSkeletonRootfs(targetDir: File) {

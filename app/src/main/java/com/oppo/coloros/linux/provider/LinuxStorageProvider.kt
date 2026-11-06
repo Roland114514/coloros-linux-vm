@@ -7,6 +7,8 @@ import android.os.ParcelFileDescriptor
 import android.provider.DocumentsContract.Document
 import android.provider.DocumentsContract.Root
 import android.provider.DocumentsProvider
+import android.system.Os
+import android.system.OsConstants
 import android.webkit.MimeTypeMap
 import com.oppo.coloros.linux.R
 import java.io.File
@@ -14,8 +16,8 @@ import java.io.FileNotFoundException
 import java.io.IOException
 
 /**
- * Android DocumentsProvider 桥接层
- * 将 Linux 根文件系统中的 /home/oppo 工作区直接暴露给 ColorOS 原生“文件管理”App
+ * Android DocumentsProvider 桥接层 (工业级高安全版)
+ * 严格防御 Path Traversal (越权路径穿越) 与软链接逃逸删除漏洞
  */
 class LinuxStorageProvider : DocumentsProvider() {
 
@@ -48,7 +50,14 @@ class LinuxStorageProvider : DocumentsProvider() {
 
     override fun onCreate(): Boolean {
         val ctx = context ?: return false
-        baseHomeDir = File(ctx.filesDir, "ubuntu-rootfs/home/oppo")
+        val rootDir = File(ctx.filesDir, "ubuntu-rootfs/root")
+        val oppoHomeDir = File(ctx.filesDir, "ubuntu-rootfs/home/oppo")
+        
+        baseHomeDir = if (rootDir.exists() || !oppoHomeDir.exists()) {
+            rootDir
+        } else {
+            oppoHomeDir
+        }
         if (!baseHomeDir.exists()) {
             baseHomeDir.mkdirs()
         }
@@ -57,7 +66,7 @@ class LinuxStorageProvider : DocumentsProvider() {
 
     override fun queryRoots(projection: Array<out String>?): Cursor {
         val result = MatrixCursor(projection ?: DEFAULT_ROOT_PROJECTION)
-        val ctx = context ?: return result
+        context ?: return result
 
         result.newRow().apply {
             add(Root.COLUMN_ROOT_ID, ROOT_ID)
@@ -68,7 +77,7 @@ class LinuxStorageProvider : DocumentsProvider() {
                         Root.FLAG_LOCAL_ONLY
             )
             add(Root.COLUMN_TITLE, "Ubuntu Linux")
-            add(Root.COLUMN_SUMMARY, "/home/oppo 工作区")
+            add(Root.COLUMN_SUMMARY, "${baseHomeDir.name} 工作区")
             add(Root.COLUMN_DOCUMENT_ID, getDocIdForFile(baseHomeDir))
             add(Root.COLUMN_MIME_TYPES, "*/*")
             add(Root.COLUMN_AVAILABLE_BYTES, baseHomeDir.usableSpace)
@@ -112,12 +121,17 @@ class LinuxStorageProvider : DocumentsProvider() {
         mimeType: String,
         displayName: String
     ): String {
+        val safeName = sanitizeFileName(displayName)
         val parent = getFileForDocId(parentDocumentId)
-        var newFile = File(parent, displayName)
+        var newFile = File(parent, safeName)
         var conflictIndex = 1
         while (newFile.exists()) {
-            newFile = File(parent, "${displayName}_$conflictIndex")
+            newFile = File(parent, "${safeName}_$conflictIndex")
             conflictIndex++
+        }
+
+        if (!isStrictChild(baseHomeDir, newFile)) {
+            throw SecurityException("越权创建文件被拦截")
         }
 
         try {
@@ -138,39 +152,75 @@ class LinuxStorageProvider : DocumentsProvider() {
 
     override fun deleteDocument(documentId: String) {
         val file = getFileForDocId(documentId)
+        if (file == baseHomeDir) {
+            throw SecurityException("禁止删除根工作区目录")
+        }
         if (!deleteRecursively(file)) {
             throw FileNotFoundException("无法删除目标文件: ${file.absolutePath}")
         }
     }
 
     override fun renameDocument(documentId: String, displayName: String): String {
+        val safeName = sanitizeFileName(displayName)
         val sourceFile = getFileForDocId(documentId)
+        if (sourceFile == baseHomeDir) {
+            throw SecurityException("禁止重命名根工作区目录")
+        }
         val parentFile = sourceFile.parentFile
             ?: throw FileNotFoundException("找不到父级目录")
-        val destFile = File(parentFile, displayName)
+        val destFile = File(parentFile, safeName)
+        if (!isStrictChild(baseHomeDir, destFile)) {
+            throw SecurityException("越权移动/重命名被拦截")
+        }
         if (!sourceFile.renameTo(destFile)) {
-            throw FileNotFoundException("重命名失败: ${sourceFile.name} -> $displayName")
+            throw FileNotFoundException("重命名失败: ${sourceFile.name} -> $safeName")
         }
         return getDocIdForFile(destFile)
     }
 
     override fun isChildDocument(parentDocumentId: String, documentId: String): Boolean {
-        val parent = getFileForDocId(parentDocumentId).canonicalPath
-        val child = getFileForDocId(documentId).canonicalPath
-        return child.startsWith(parent)
+        return try {
+            val parent = getFileForDocId(parentDocumentId)
+            val child = getFileForDocId(documentId)
+            isStrictChild(parent, child)
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    private fun isStrictChild(parentDir: File, targetFile: File): Boolean {
+        val parentCanonical = parentDir.canonicalPath
+        val targetCanonical = targetFile.canonicalPath
+        if (parentCanonical == targetCanonical) return true
+        val parentPrefix = if (parentCanonical.endsWith(File.separator)) {
+            parentCanonical
+        } else {
+            parentCanonical + File.separator
+        }
+        return targetCanonical.startsWith(parentPrefix)
+    }
+
+    private fun sanitizeFileName(displayName: String): String {
+        val cleaned = displayName.trim()
+        if (cleaned.isEmpty() || cleaned == "." || cleaned == ".." ||
+            cleaned.contains('/') || cleaned.contains('\\') || cleaned.contains('\u0000')
+        ) {
+            throw SecurityException("非法的文档名称: $displayName")
+        }
+        return cleaned
     }
 
     private fun getDocIdForFile(file: File): String {
-        val rootPath = baseHomeDir.canonicalPath
-        val filePath = file.canonicalPath
-        return if (filePath == rootPath) {
-            ROOT_ID
-        } else if (filePath.startsWith(rootPath)) {
-            val rel = filePath.substring(rootPath.length).removePrefix("/")
-            "$ROOT_ID:$rel"
-        } else {
-            throw IllegalArgumentException("越权路径访问被拦截: $filePath")
+        val rootCanonical = baseHomeDir.canonicalPath
+        val fileCanonical = file.canonicalPath
+        if (fileCanonical == rootCanonical) {
+            return ROOT_ID
         }
+        if (isStrictChild(baseHomeDir, file)) {
+            val rel = fileCanonical.substring(rootCanonical.length).removePrefix(File.separator)
+            return "$ROOT_ID:$rel"
+        }
+        throw SecurityException("越权路径访问被拦截: $fileCanonical")
     }
 
     @Throws(FileNotFoundException::class)
@@ -188,10 +238,8 @@ class LinuxStorageProvider : DocumentsProvider() {
         val relPath = docId.substring(splitIndex + 1)
         val target = File(baseHomeDir, relPath)
 
-        val rootCanonical = baseHomeDir.canonicalPath
-        val targetCanonical = target.canonicalPath
-        if (!targetCanonical.startsWith(rootCanonical)) {
-            throw SecurityException("拒绝访问工作区以外的目录: $targetCanonical")
+        if (!isStrictChild(baseHomeDir, target)) {
+            throw SecurityException("拒绝访问工作区以外的目录: ${target.canonicalPath}")
         }
         if (!target.exists()) {
             throw FileNotFoundException("文件不存在: $docId")
@@ -222,7 +270,7 @@ class LinuxStorageProvider : DocumentsProvider() {
             flags = flags or Document.FLAG_SUPPORTS_DELETE or Document.FLAG_SUPPORTS_RENAME
         }
 
-        val displayName = if (targetFile == baseHomeDir) "oppo" else targetFile.name
+        val displayName = if (targetFile == baseHomeDir) baseHomeDir.name else targetFile.name
         val mimeType = getMimeType(targetFile)
 
         result.newRow().apply {
@@ -249,8 +297,18 @@ class LinuxStorageProvider : DocumentsProvider() {
         return "application/octet-stream"
     }
 
+    private fun isSymlink(file: File): Boolean {
+        return try {
+            val stat = Os.lstat(file.absolutePath)
+            OsConstants.S_ISLNK(stat.st_mode)
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     private fun deleteRecursively(file: File): Boolean {
-        if (file.isDirectory) {
+        // 关键安全防御：若为软链接，直接删除链接本身，绝不递归遍历其指向的宿主或容器外目录
+        if (file.isDirectory && !isSymlink(file)) {
             file.listFiles()?.forEach { child ->
                 if (!deleteRecursively(child)) return false
             }

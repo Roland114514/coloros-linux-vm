@@ -40,11 +40,17 @@ class FloatingSwitchService : Service() {
     private var initialTouchY = 0f
     private var isDragging = false
     private var edgeAnimator: ValueAnimator? = null
+    private var isViewAdded = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
+        if (!android.provider.Settings.canDrawOverlays(this)) {
+            Log.w(TAG, "SYSTEM_ALERT_WINDOW 权限未授予，安全退出悬浮球服务")
+            stopSelf()
+            return
+        }
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         touchSlop = ViewConfiguration.get(this).scaledTouchSlop
         updateScreenDimensions()
@@ -90,8 +96,15 @@ class FloatingSwitchService : Service() {
             handleTouch(v, event)
         }
 
-        windowManager.addView(floatingView, layoutParams)
-        fadeToIdleState()
+        try {
+            windowManager.addView(floatingView, layoutParams)
+            isViewAdded = true
+            fadeToIdleState()
+        } catch (e: Exception) {
+            Log.e(TAG, "添加悬浮窗视图异常", e)
+            isViewAdded = false
+            stopSelf()
+        }
     }
 
     private fun handleTouch(view: View, event: MotionEvent): Boolean {
@@ -218,8 +231,11 @@ class FloatingSwitchService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         edgeAnimator?.cancel()
-        if (::floatingView.isInitialized && floatingView.isAttachedToWindow) {
-            windowManager.removeView(floatingView)
+        if (isViewAdded && ::floatingView.isInitialized) {
+            try {
+                windowManager.removeViewImmediate(floatingView)
+            } catch (_: Exception) {}
+            isViewAdded = false
         }
     }
 }

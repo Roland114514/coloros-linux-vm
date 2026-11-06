@@ -74,12 +74,35 @@ class SmartTrackpadActivity : AppCompatActivity() {
     private var isMiddleBtnHeld: Boolean = false
     private var isRightBtnHeld: Boolean = false
 
+    private lateinit var displayManager: android.hardware.display.DisplayManager
+
+    private val displayListener = object : android.hardware.display.DisplayManager.DisplayListener {
+        override fun onDisplayAdded(displayId: Int) {
+            updateExternalDisplayInfo()
+        }
+
+        override fun onDisplayRemoved(displayId: Int) {
+            if (!ExternalDisplayCoordinator.isExternalDisplayConnected(this@SmartTrackpadActivity)) {
+                // 外接显示器已断开拔出，自动退出内屏触控板模式，平滑过渡回平板显示
+                finish()
+            } else {
+                updateExternalDisplayInfo()
+            }
+        }
+
+        override fun onDisplayChanged(displayId: Int) {
+            updateExternalDisplayInfo()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContentView(R.layout.activity_smart_trackpad)
 
         touchSlop = ViewConfiguration.get(this).scaledTouchSlop
+        displayManager = getSystemService(Context.DISPLAY_SERVICE) as android.hardware.display.DisplayManager
+        displayManager.registerDisplayListener(displayListener, null)
 
         initViews()
         setupTrackpadTouchEngine()
@@ -317,7 +340,8 @@ class SmartTrackpadActivity : AppCompatActivity() {
 
             MotionEvent.ACTION_UP -> {
                 val duration = SystemClock.uptimeMillis() - downTime
-                if (!isDraggingMoved && duration < TAP_MAX_DURATION_MS) {
+                val anyPhysicalButtonHeld = isLeftBtnHeld || isMiddleBtnHeld || isRightBtnHeld
+                if (!isDraggingMoved && !anyPhysicalButtonHeld && duration < TAP_MAX_DURATION_MS) {
                     when (maxPointerCountInGesture) {
                         1 -> {
                             view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
@@ -553,6 +577,13 @@ class SmartTrackpadActivity : AppCompatActivity() {
         if (isRightBtnHeld) {
             isRightBtnHeld = false
             InputEventBridge.setMouseButtonState(InputEventBridge.MOUSE_BUTTON_RIGHT, false)
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        if (::displayManager.isInitialized) {
+            displayManager.unregisterDisplayListener(displayListener)
         }
     }
 
